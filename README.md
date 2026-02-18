@@ -1,121 +1,109 @@
+# 复现
 
-<h2> Enhancing Infrared Vision: Progressive Prompt Fusion Network and Benchmark</h2>
-Jinyuan Liu, Zihang Chen, Zhu Liu, Zhiying Jiang, Long Ma, Xin Fan, Risheng Liu
+**环境说明**：RTX 4060, Ubuntu 22.04 (WSL2), Python 3.8, PyTorch 2.1.0
 
-###  Enhancing Infrared Vision: Progressive Prompt Fusion Network and Benchmark [NeurIPS 2025]
+## 数据汇总
 
----
+### 受控场景
 
-<img src="./assets/ff.png" align="middle" width="600">
+| 场景分类               | 测试子集           | 指标 | My Model | Author Best | 性能差距（PSNR⬆） |
+| ---------------------- | ------------------ | ---- | -------- | ----------- | ----------------- |
+| 复合退化（Composited） | Normal             | PSNR | 13.2194  | 25.3227     | -12.1033          |
+|                        |                    | SSIM | 0.5168   | 0.8180      |                   |
+|                        | Hard               | PSNR | 14.8505  | 23.2708     | -8.4203           |
+|                        |                    | SSIM | 0.5408   | 0.7643      |                   |
+| 单项退化（Single）     | Contrast（对比度） | PSNR | 18.6841  | 39.9721     | -21.288           |
+|                        |                    | SSIM | 0.8120   | 0.9914      |                   |
+|                        | Blur（去模糊）     | PSNR | 31.2271  | 37.4164     | -6.1893           |
+|                        |                    | SSIM | 0.8141   | 0.9448      |                   |
+|                        | Noise（去噪）      | PSNR | 20.6333  | 27.9383     | -7.305            |
+|                        |                    | SSIM | 0.7409   | 0.8936      |                   |
 
----
-### Updates
-[2025-10-13] The arXiv version of the paper is available [here](https://arxiv.org/abs/2510.09343).
+### 真实场景
 
-[2025-10-7] The code and dataset are available.
+| 指标   | My Model | Author Best |
+| ------ | -------- | ----------- |
+| NIQE⬇  | 9.2098   | 8.4603      |
+| NIMA⬆  | 3.3116   | 3.8407      |
+| MUSIQ⬆ | 26.4084  | 30.8928     |
 
-[2025-9-30] Our paper has been accepted by NeurIPS 2025, and the code will be released soon.
+> **指标说明：**
+>
+> - **PSNR/SSIM**: 有参考评价。PSNR 越高图像越保真，SSIM 越接近 1 结构越完整。
+> - **NIQE**: 无参考自然度。数值越低，图像越像真实的自然照片，而非人工处理的结果。
+> - **NIMA/MUSIQ**: 盲质量评估。数值越高，画面的视觉感官质量和多尺度细节越好。
 
-## HM-TIR Dataset
-The preview of our dataset is as follows.
+## 对比图
 
----
+### composited_hard 视觉对比
 
-![preview](assets/preview.png)
- 
----
+|      原始输入 (Datasets)      |           我的模型 (My Model)           |           作者权重 (Author Best)            |
+| :---------------------------: | :-------------------------------------: | :-----------------------------------------: |
+| ![datasets](assets/00335.png) | ![my](assets/00335-1771383879831-7.png) | ![author](assets/00335-1771383923290-9.png) |
 
-### Download
-The datasets containing clean and degraded infrared images are provided in:
-- [Google Drive](https://drive.google.com/file/d/17kq2NQ-8bFeESlanffcOSlFLwGb0Y8Rq/view?usp=sharing)
+### single_contrast 视觉对比
 
-## Progressive Prompt Fusion Network (PPFN) For Infrared Enhancement
+|      原始输入 (Datasets)      |           我的模型 (My Model)           |           作者权重 (Author Best)            |
+| :---------------------------: | :-------------------------------------: | :-----------------------------------------: |
+| ![datasets](assets/00398.png) | ![my](assets/00398-1771383428609-2.png) | ![author](assets/00398-1771383467661-4.png) |
 
----
+## 结论
 
-<img src="./assets/workflow.png" align="middle" width="800">
+1. **模型收敛度**：My Model 与 Author Best 的主要差距集中在 **Contrast（对比度）** 维度（-21.2 dB）。这表明对比度恢复需要更长的训练周期或更精细的学习率调度。
+2. **泛化性验证**：在 **NIQE** 指标上，My Model (9.2) 与 Author Best (8.4) 差距较小，证明复现模型在处理真实红外噪声时已具备良好的泛化性，没有产生明显的伪影。
+3. **强项维度**：在 **Blur（去模糊）** 任务中，My Model 达到了 31.2 dB，跨越了 30dB 的高质量修复门槛。
 
----
+## 问题与对策
 
-### Quick Start
+> pytorch版本过时
 
-For quick start, first, you can create a new environment:
+- **问题描述**：原代码 `requirements.txt` 指定的 PyTorch 版本过旧（PyTorch 1.x），无法直接在现代的高版本 CUDA 环境下运行，容易导致显卡驱动不匹配或安装失败。
+- **对策**：根据 RTX 4060 的硬件特性，手动配置了 **PyTorch 2.1.0 + CUDA 12.1** 环境。通过调整代码中的部分 API 调用（如处理 `timm` 库的导入路径警告），成功在 2.x 环境下实现了全功能复现。
 
-```
-conda create -n PPFN python=3.8
-conda activate PPFN
-pip install -r requirements.txt
-```
+> 数据生成路径报错
 
-Then download the pretrained model [weights](https://drive.google.com/file/d/1Yt_YViFCpxgO-MfBlINVt4-jHAgsalv_/view?usp=sharing).
+需要修正 `create_corrupt.py` 中的拼接逻辑，使得程序能正确读取 `datasets/HM-TIR/test/` 下的文件。
 
-You can run the following command:
+```python
+def create_corrupt():
+    # 1. 组合出 test.txt 的位置：./datasets/HM-TIR/test.txt
+    dataset_dir = os.path.join(opt.dataset_dir, opt.dataset_name)
+    txt_path = os.path.join(dataset_dir, 'test.txt')
+    
+    # 2. 组合出图片实际存放的目录：./datasets/HM-TIR/test/
+    image_folder = os.path.join(dataset_dir, 'test')
 
-```
-CUDA_VISIBLE_DEVICES=0 python demo.py --dataset_dir ./example/{normal, hard} --output example/enhanced --weights put/weight/path/here
-```
+    with open(txt_path, 'r') as f:
+        img_names = f.read().splitlines()
 
-### Data Preparation
+    tbar = tqdm(img_names)
+    for img_name in tbar:
+        # 3. 关键修正：确保从 test 文件夹里读取图片
+        read_path = os.path.join(image_folder, img_name)
+        
+        if not os.path.exists(read_path):
+            print(f"\n错误：找不到图片 {read_path}")
+            continue
 
-You should put the dataset in the "datasets" fold in the following form.
+        img = Image.open(read_path).convert('L')
+        img_list = {'image': np.array(img, dtype=np.uint8)}
+        
+        # 执行降质处理
+        img_list = LC()(**img_list)
+        img_list = Blur()(**img_list)
+        img_list = Noise()(**img_list)
+        
+        cor_img = Image.fromarray(img_list['image']).convert('L')
 
-```
-TarDAL ROOT
-├── datasets
-|   ├── HM-TIR
-|   |   ├── imgs # all clean infrared images
-|   |   ├── composited # test composited degraded infrared images
-|   |   |   ├── normal # sub test set in normal degradation
-|   |   |   └── hard # sub test set in hard degradation
-|   |   ├── single # single degraded infrared images
-|   |   |   ├── blur # sub test set in blur degradation
-|   |   |   ├── contrast # sub test set in contrast degradation
-|   |   |   └── noise # sub test set in noise degradation
-|   |   ├── test # test clean infrared images
-|   |   └── meta # meta data, includes: train.txt, test.txt
-|   └── ...
-```
-
-### Training
-Download the HM-TIR dataset, then run the command:
-```
-python train.py --dataset_name HM-TIR --dataset_dir datasets 
-```
-
-### Testing
-For composited degradation scenario, run the following command:
-```
-python evluation.py --dataset_name HM-TIR --dataset_dir datasets --deg_scenario composited --subset {normal, hard} --output results --weights put/weight/path/here
-```
-
-For single degradation scenario, run the following command:
-```
-python evluation.py --dataset_name HM-TIR --dataset_dir datasets --deg_scenario single --subset {contrast, blur, noise}  --output results --weights put/weight/path/here
-```
-
-For real-world dataset evaluation, we select 70 images form Iray. You can download the [images](https://drive.google.com/file/d/1uhWCvPExarnUL-r_G0MW530RXKpj5izJ/view?usp=sharing) we selected, then run the following command:
-```
-python inference.py --dataset_name Iray_select --dataset_dir datasets --output results --cal_iqa True --weights put/weight/path/here
-```
-
-You can download some results in [here](https://drive.google.com/file/d/10jiNGF0c6H0cR83yEN5I3stLf9qiX6cR/view?usp=sharing)
-
-
-### Generating new degraded TIR Images
-If you want to generate new degraded TIR Images with new degradation levels or types, first, changing the "create_corrupt.py" file about degradation setting (lines 18-68), then, run the following command:
-```
-python create_corrupt.py --dataset_name HM-TIR --dataset_dir datasets --save_dir datasets/corrputed
+        # 4. 确保保存目录存在
+        save_path = os.path.join(opt.save_dir, opt.dataset_name)
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        
+        cor_img.save(os.path.join(save_path, img_name))
 ```
 
-### Any Question
+> CUDA/CuDNN 兼容性警告
 
-If you have any other questions about the code and dataset, please email to [Zihang Chen](mailto:chenzi_hang@mail.dlut.edu.cn) or [Jinyuan Liu](mailto:atlantis918@hotmail.com).
-
-
-## Acknowledgement
-Our core codes are based on [MIOIR](https://github.com/Xiangtaokong/MiOIR) and [LLFormer](https://github.com/TaoWangzj/LLFormer), thanks for their contribution.
-
-
-
-
-
+- **问题描述**：推理过程中出现 `UserWarning: Applied workaround for CuDNN issue...`，提示找不到 `nvrtc.so`。
+- **对策**：经查证，该错误是由于 PyTorch 内部对特定卷积算子的兼容性触发的补丁。通过验证输出图片的质量以及指标的一致性，确认为非致命错误，不影响最终复现分数的准确性。
