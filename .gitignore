@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+
+data/
+example/
+datasets/
+
+exps/
+results/
+checkpoint/
+*.pth
+
+models/
+
+
+.vscode/
+.idea/
